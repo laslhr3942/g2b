@@ -13,9 +13,9 @@ API_ENDPOINTS = {
         'date_param': 'bidClseDt'   # 마감일
     },
     '사전규격': {
-        # ★ 핵심 수정: 신규 서버(ao) + 신규 명령어(getPublicPrcureThngInfoServc)
-        'url': 'https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServc',
-        'param_name': 'bfSpecNm',   # 사전규격명 (안 되면 'prdctNm'일 수도 있음)
+        # ★ 핵심 수정: 스크린샷의 정확한 주소 + 문서에서 찾은 정확한 명령어
+        'url': 'https://apis.data.go.kr/1230000/ao/HrcspsSstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch',
+        'param_name': 'bfSpecNm',   # 사전규격명
         'date_param': 'bfSpecRegDt' # 등록일
     }
 }
@@ -96,10 +96,11 @@ def parse_items(api_response, search_type):
     mapping = field_map[search_type]
     
     for item in items:
-        # 사전규격은 필드명이 다를 수 있어 예외 처리 (bfSpecNm 없으면 prdctNm 시도)
+        # 사전규격은 필드명이 다를 수 있어 예외 처리
         title = item.get(mapping['title'])
         if not title and search_type == '사전규격':
-            title = item.get('prdctNm', '제목 없음') # 신규 API 필드명 대응
+            # 혹시 bfSpecNm이 없으면 다른 이름 필드(사업명 등)를 찾아봄
+            title = item.get('prdctNm') or item.get('bsnsNm') or '제목 없음'
             
         parsed_items.append({
             'title': title,
@@ -146,4 +147,11 @@ def main():
             )
             
         if api_response:
-            items = parse_items(api_response, search_type
+            # ★ 여기가 수정된 부분입니다! (괄호 닫음)
+            items = parse_items(api_response, search_type)
+            
+            if items:
+                st.success(f"✅ 총 {len(items)}건 발견!")
+                for item in items:
+                    with st.expander(f"[{item['org']}] {item['title']}"):
+                        st
