@@ -13,13 +13,18 @@ API_CONFIG = {
     'inqry_div': '1'
 }
 
+# ★ 여기가 핵심 수정 부분입니다! (선생님의 특수 주소 추가)
 API_ENDPOINTS = {
     '입찰공고': [
-        'https://apis.data.go.kr/1230000/BidPublicInfoService02/getBidPblancListInfoServcPPSSrch',
-        'https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServcPPSSrch'
+        'https://apis.data.go.kr/1230000/BidPublicInfoService02/getBidPblancListInfoServcPPSSrch', # 표준
+        'https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServcPPSSrch' # 특수(ad)
     ],
     '사전규격': [
+        # 1. 선생님 스크린샷에 있던 바로 그 주소 (가장 중요!)
+        'https://apis.data.go.kr/1230000/ao/HrcspsSstndrdInfoService/getBfSpecListInfoServcPPSSrch',
+        # 2. 표준 주소
         'https://apis.data.go.kr/1230000/BfSpecInfoService01/getBfSpecListInfoServcPPSSrch',
+        # 3. 혹시 몰라 추가한 주소
         'https://apis.data.go.kr/1230000/ad/BfSpecInfoService/getBfSpecListInfoServcPPSSrch'
     ]
 }
@@ -95,16 +100,6 @@ def fetch_nara_data(
 ) -> Optional[Dict]:
     """
     나라장터 API에서 데이터 조회
-    
-    Args:
-        search_type: 검색 유형 ('입찰공고' or '사전규격')
-        keyword: 검색 키워드
-        start_date: 시작일 (YYYYMMDDHHmm)
-        end_date: 종료일 (YYYYMMDDHHmm)
-        service_key: API 인증키
-    
-    Returns:
-        API 응답 데이터 또는 None
     """
     urls = API_ENDPOINTS.get(search_type, [])
     param_name = FIELD_MAPPING[search_type]['param_name']
@@ -182,7 +177,7 @@ def parse_items(api_response: Dict, search_type: str) -> List[Dict]:
             'date': format_datetime(item.get(mapping['date'], '')),
             'link': item.get(mapping['link'], '#'),
             'date_label': mapping['date_label'],
-            'raw': item  # 원본 데이터 보관 (필요시 사용)
+            'raw': item  # 원본 데이터 보관
         })
     
     return parsed_items
@@ -204,14 +199,12 @@ def render_item_card(item: Dict):
 def display_results(items: List[Dict], api_info: Dict):
     """검색 결과 전체 출력"""
     if items:
-        # 성공 메시지 (어떤 API로 성공했는지 표시)
-        st.success(f"✅ 총 {len(items)}건의 정보를 찾았습니다. (API 엔드포인트 {api_info['attempt']}/{len(API_ENDPOINTS[st.session_state.search_type])} 사용)")
+        st.success(f"✅ 총 {len(items)}건의 정보를 찾았습니다.")
         
-        # 디버그 정보 (확장 가능)
-        with st.expander("🔧 API 호출 정보 (개발자용)", expanded=False):
-            st.code(api_info['url'], language='text')
+        # 디버그 정보 (개발자용 - 성공한 주소 확인용)
+        with st.expander("🔧 연결 성공 주소 확인 (개발자용)", expanded=False):
+            st.write(f"사용된 주소: `{api_info['url']}`")
         
-        # 아이템 출력
         for item in items:
             render_item_card(item)
     else:
@@ -219,15 +212,12 @@ def display_results(items: List[Dict], api_info: Dict):
 
 # ==================== 메인 로직 ====================
 def main():
-    # 제목 및 설명
     st.title("📢 나라장터 용역 정보 검색기 Pro")
     st.markdown("입찰공고와 사전규격을 구분해서 검색하고, 날짜를 달력으로 지정해보세요.")
     
-    # 사이드바: 검색 옵션
     with st.sidebar:
         st.header("🔍 검색 옵션")
         
-        # 정보 유형 선택
         search_type = st.radio(
             "정보 유형을 선택하세요",
             ("입찰공고", "사전규격")
@@ -235,10 +225,8 @@ def main():
         
         st.divider()
         
-        # 검색어 입력
         keyword = st.text_input("검색어 입력", placeholder="예: 기획, 디자인, 인공지능")
         
-        # 날짜 선택
         today = datetime.datetime.now()
         seven_days_ago = today - datetime.timedelta(days=7)
         
@@ -247,42 +235,36 @@ def main():
             (seven_days_ago, today)
         )
         
-        # 고급 설정 (선택사항)
+        # 고급 설정
         with st.expander("⚙️ 고급 설정"):
             custom_rows = st.number_input(
                 "표시할 결과 수",
-                min_value=10,
-                max_value=100,
-                value=API_CONFIG['num_rows'],
-                step=10
+                min_value=10, max_value=100,
+                value=API_CONFIG['num_rows'], step=10
             )
             if custom_rows != API_CONFIG['num_rows']:
                 API_CONFIG['num_rows'] = custom_rows
         
         search_btn = st.button("검색 시작 🚀", type="primary")
     
-    # 검색 실행
     if search_btn:
         if not keyword:
             st.warning("⚠️ 검색어를 입력해주세요!")
             return
         
-        # API 키 검증
         service_key = get_api_key()
         if not service_key:
             return
         
-        # 날짜 검증
         date_result = validate_date_range(date_range)
         if not date_result:
             return
         
         start_date, end_date = date_result
         
-        # API 호출
         with st.spinner(f"📡 '{search_type}' 정보를 찾는 중입니다..."):
-            # session_state에 검색 타입 저장 (display_results에서 사용)
-            st.session_state.search_type = search_type
+            if 'search_type' not in st.session_state:
+                st.session_state.search_type = search_type
             
             api_response = fetch_nara_data(
                 search_type=search_type,
@@ -292,17 +274,12 @@ def main():
                 service_key=service_key
             )
         
-        # 결과 처리
         if api_response:
             items = parse_items(api_response, search_type)
             display_results(items, api_response)
         else:
-            st.error("❌ 모든 API 엔드포인트 호출에 실패했습니다.")
-            st.write("**해결 방법:**")
-            st.write("1. 잠시 후 다시 시도해보세요.")
-            st.write("2. 공공데이터포털에서 활용신청 상태를 확인해보세요.")
-            st.write("3. API 키가 올바른지 확인해보세요.")
+            st.error("❌ 서버 연결 실패 (모든 주소 시도 실패)")
+            st.write("**팁:** 잠시 후 다시 시도하거나, 공공데이터포털 활용신청 상태를 확인하세요.")
 
-# ==================== 앱 실행 ====================
 if __name__ == "__main__":
     main()
