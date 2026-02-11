@@ -42,9 +42,7 @@ API_ENDPOINTS = {
     },
     '사전규격': {
         'urls': [
-            'https://apis.data.go.kr/1230000/ao/HrcspsSstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch',
-            'https://apis.data.go.kr/1230000/BfSpecInfoService01/getBfSpecListInfoServcPPSSrch',
-            'https://apis.data.go.kr/1230000/ad/BfSpecInfoService/getBfSpecListInfoServcPPSSrch'
+            'https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch'
         ],
         'param_name': 'bfSpecNm',
         'fields': {
