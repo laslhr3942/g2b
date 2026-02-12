@@ -227,6 +227,14 @@ def display_results(items: List[Dict], api_info: Dict, search_type: str):
         with st.expander("🔧 API 호출 정보 (개발자용)", expanded=False):
             st.code(api_info['url'], language='text')
         
+        # 🐛 디버그: 원본 데이터 출력
+        with st.expander("🐛 디버그: 원본 API 응답 데이터", expanded=True):
+            st.write("**첫 번째 아이템의 모든 필드:**")
+            if items and 'raw' in items[0]:
+                st.json(items[0]['raw'])
+            else:
+                st.write("원본 데이터 없음")
+        
         # 아이템 출력
         for item in items:
             render_item_card(item)
