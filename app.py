@@ -46,11 +46,12 @@ API_ENDPOINTS = {
         ],
         'param_name': 'bfSpecNm',
         'fields': {
-            'title': 'bfSpecNm',
-            'org': 'dminsttNm',
-            'date': 'bfSpecRegDt',
-            'link': 'bfSpecDtlUrl',
-            'date_label': '등록일'
+            'title': 'prdctClsfcNoNm',  # 제품분류번호명 (사업명)
+            'org': 'orderInsttNm',       # 발주기관명 (수요기관)
+            'date': 'rgstDt',            # 등록일시
+            'link': 'bfSpecRgstNo',      # 사전규격등록번호 (링크 생성용)
+            'date_label': '등록일',
+            'budget': 'asignBdgtAmt'     # 배정예산액
         }
     }
 }
@@ -58,11 +59,23 @@ API_ENDPOINTS = {
 # ==================== 유틸리티 함수 ====================
 def format_datetime(date_str: str) -> str:
     """날짜 문자열 포맷팅 (YYYYMMDDHHmm → YYYY-MM-DD HH:mm)"""
-    if date_str and len(date_str) == 12:
+    if not date_str:
+        return '-'
+    
+    # 이미 포맷된 날짜인 경우 (YYYY-MM-DD HH:mm:ss)
+    if '-' in date_str:
+        # 초 단위 제거
+        return date_str.rsplit(':', 1)[0] if ':' in date_str else date_str
+    
+    # YYYYMMDDHHmm 형식
+    if len(date_str) == 12:
         return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]} {date_str[8:10]}:{date_str[10:12]}"
-    elif date_str and len(date_str) == 8:
+    
+    # YYYYMMDD 형식
+    if len(date_str) == 8:
         return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
-    return date_str or '-'
+    
+    return date_str
 
 def get_api_key() -> Optional[str]:
     """Secrets에서 API 키 가져오기"""
@@ -192,14 +205,35 @@ def parse_items(api_response: Dict, search_type: str) -> List[Dict]:
                  item.get('bfSpecNm') or 
                  '제목 없음')
         
-        parsed_items.append({
+        # 링크 생성 (사전규격은 등록번호로 URL 생성)
+        if search_type == '사전규격':
+            reg_no = item.get(fields['link'])
+            if reg_no:
+                link = f"https://www.g2b.go.kr:8101/ep/preparation/prestd/preStdPublish.do?preStdRegNo={reg_no}"
+            else:
+                link = '#'
+        else:
+            link = item.get(fields['link'], '#')
+        
+        parsed_item = {
             'title': title,
             'org': item.get(fields['org'], '기관명 없음'),
             'date': format_datetime(item.get(fields['date'], '')),
-            'link': item.get(fields['link'], '#'),
+            'link': link,
             'date_label': fields['date_label'],
             'raw': item  # 원본 데이터 보관
-        })
+        }
+        
+        # 사전규격인 경우 예산 정보 추가
+        if search_type == '사전규격' and 'budget' in fields:
+            budget = item.get(fields['budget'])
+            if budget:
+                try:
+                    parsed_item['budget'] = f"{int(budget):,}원"
+                except:
+                    parsed_item['budget'] = budget
+        
+        parsed_items.append(parsed_item)
     
     return parsed_items
 
@@ -211,6 +245,9 @@ def render_item_card(item: Dict):
         with col1:
             st.write(f"🏢 수요기관: {item['org']}")
             st.write(f"📅 {item['date_label']}: {item['date']}")
+            # 예산 정보가 있으면 표시
+            if 'budget' in item:
+                st.write(f"💰 배정예산: {item['budget']}")
         with col2:
             if item['link'] != '#':
                 st.link_button("상세보기 👉", item['link'])
@@ -228,7 +265,7 @@ def display_results(items: List[Dict], api_info: Dict, search_type: str):
             st.code(api_info['url'], language='text')
         
         # 🐛 디버그: 원본 데이터 출력
-        with st.expander("🐛 디버그: 원본 API 응답 데이터", expanded=True):
+        with st.expander("🐛 디버그: 원본 API 응답 데이터", expanded=False):
             st.write("**첫 번째 아이템의 모든 필드:**")
             if items and 'raw' in items[0]:
                 st.json(items[0]['raw'])
